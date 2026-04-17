@@ -1,1 +1,7 @@
 project_id = "efeenxibjhgwjwwveqmw"
+
+[functions.generate-flashcards]
+verify_jwt = true
+
+[functions.update-card-sm2]
+verify_jwt = true
