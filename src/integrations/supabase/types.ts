@@ -14,7 +14,181 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      cards: {
+        Row: {
+          answer: string
+          created_at: string
+          deck_id: string
+          difficulty_hint: string
+          due_date: string
+          ease_factor: number
+          id: string
+          interval: number
+          last_rating: number | null
+          mastery_state: string
+          question: string
+          repetitions: number
+          topic_tag: string
+        }
+        Insert: {
+          answer: string
+          created_at?: string
+          deck_id: string
+          difficulty_hint?: string
+          due_date?: string
+          ease_factor?: number
+          id?: string
+          interval?: number
+          last_rating?: number | null
+          mastery_state?: string
+          question: string
+          repetitions?: number
+          topic_tag?: string
+        }
+        Update: {
+          answer?: string
+          created_at?: string
+          deck_id?: string
+          difficulty_hint?: string
+          due_date?: string
+          ease_factor?: number
+          id?: string
+          interval?: number
+          last_rating?: number | null
+          mastery_state?: string
+          question?: string
+          repetitions?: number
+          topic_tag?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cards_deck_id_fkey"
+            columns: ["deck_id"]
+            isOneToOne: false
+            referencedRelation: "decks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      decks: {
+        Row: {
+          color: string
+          created_at: string
+          description: string | null
+          emoji: string
+          id: string
+          last_studied_at: string | null
+          name: string
+          source_filename: string | null
+          total_cards: number
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          emoji?: string
+          id?: string
+          last_studied_at?: string | null
+          name: string
+          source_filename?: string | null
+          total_cards?: number
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          emoji?: string
+          id?: string
+          last_studied_at?: string | null
+          name?: string
+          source_filename?: string | null
+          total_cards?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      study_sessions: {
+        Row: {
+          cards_again: number
+          cards_easy: number
+          cards_good: number
+          cards_hard: number
+          cards_studied: number
+          deck_id: string | null
+          duration_seconds: number
+          id: string
+          studied_at: string
+          user_id: string
+        }
+        Insert: {
+          cards_again?: number
+          cards_easy?: number
+          cards_good?: number
+          cards_hard?: number
+          cards_studied?: number
+          deck_id?: string | null
+          duration_seconds?: number
+          id?: string
+          studied_at?: string
+          user_id: string
+        }
+        Update: {
+          cards_again?: number
+          cards_easy?: number
+          cards_good?: number
+          cards_hard?: number
+          cards_studied?: number
+          deck_id?: string | null
+          duration_seconds?: number
+          id?: string
+          studied_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_sessions_deck_id_fkey"
+            columns: ["deck_id"]
+            isOneToOne: false
+            referencedRelation: "decks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_stats: {
+        Row: {
+          current_streak: number
+          last_studied_date: string | null
+          longest_streak: number
+          total_cards_studied: number
+          total_sessions: number
+          updated_at: string
+          user_id: string
+          xp_points: number
+        }
+        Insert: {
+          current_streak?: number
+          last_studied_date?: string | null
+          longest_streak?: number
+          total_cards_studied?: number
+          total_sessions?: number
+          updated_at?: string
+          user_id: string
+          xp_points?: number
+        }
+        Update: {
+          current_streak?: number
+          last_studied_date?: string | null
+          longest_streak?: number
+          total_cards_studied?: number
+          total_sessions?: number
+          updated_at?: string
+          user_id?: string
+          xp_points?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
