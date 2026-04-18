@@ -1,14 +1,18 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { DeckCard, type DeckSummary } from "@/components/DeckCard";
 import { PdfUploadZone } from "@/components/PdfUploadZone";
 import { StatCard } from "@/components/StatCard";
+import { GuestBanner } from "@/components/GuestBanner";
+import { HeatmapGrid } from "@/components/HeatmapGrid";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
-import { Sparkles, Zap, BookOpen, Flame, GraduationCap, Loader2 } from "lucide-react";
+import { Sparkles, Zap, BookOpen, Flame, GraduationCap, Loader2, Search, X, CalendarDays } from "lucide-react";
+import { format } from "date-fns";
 
 type Stats = {
   total_cards: number;
@@ -17,14 +21,22 @@ type Stats = {
 };
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const [decks, setDecks] = useState<DeckSummary[] | null>(null);
   const [stats, setStats] = useState<Stats>({ total_cards: 0, due_today: 0, mastered: 0 });
   const [streak, setStreak] = useState(0);
+  const [heatmap, setHeatmap] = useState<Record<string, number>>({});
+  const [search, setSearch] = useState("");
+
+  // Make sure user_stats row exists (handles anonymous users where trigger may not fire)
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("user_stats").upsert({ user_id: user.id }, { onConflict: "user_id", ignoreDuplicates: true });
+  }, [user]);
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [decksRes, statsRes] = await Promise.all([
+    const [decksRes, statsRes, sessionsRes] = await Promise.all([
       supabase
         .from("decks")
         .select("id, name, emoji, color, description, total_cards, created_at")
@@ -35,9 +47,21 @@ export default function Dashboard() {
         .select("current_streak")
         .eq("user_id", user.id)
         .maybeSingle(),
+      supabase
+        .from("study_sessions")
+        .select("studied_at, cards_studied")
+        .eq("user_id", user.id),
     ]);
 
     setStreak(statsRes.data?.current_streak ?? 0);
+
+    // Build heatmap: yyyy-MM-dd -> total cards
+    const hm: Record<string, number> = {};
+    (sessionsRes.data ?? []).forEach((s) => {
+      const day = format(new Date(s.studied_at), "yyyy-MM-dd");
+      hm[day] = (hm[day] ?? 0) + (s.cards_studied ?? 0);
+    });
+    setHeatmap(hm);
 
     if (!decksRes.data) {
       setDecks([]);
@@ -81,12 +105,21 @@ export default function Dashboard() {
 
   const totalDue = stats.due_today;
 
+  const filteredDecks = useMemo(() => {
+    if (!decks) return null;
+    const q = search.trim().toLowerCase();
+    if (!q) return decks;
+    return decks.filter((d) => d.name.toLowerCase().includes(q));
+  }, [decks, search]);
+
   return (
     <AppShell>
       <div className="space-y-8 animate-fade-in">
+        {isGuest && <GuestBanner />}
+
         <div>
           <h1 className="font-display text-3xl sm:text-4xl font-semibold">
-            {greeting()}{user?.email ? `, ${user.email.split("@")[0]}` : ""}
+            {greeting()}{!isGuest && user?.email ? `, ${user.email.split("@")[0]}` : ""}
           </h1>
           <p className="text-muted-foreground mt-1">Pick up where you left off — or feed me a new PDF.</p>
         </div>
@@ -120,19 +153,60 @@ export default function Dashboard() {
           </Card>
         )}
 
+        {/* Heatmap */}
         <section>
-          <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display text-xl font-semibold flex items-center gap-2 mb-4">
+            <CalendarDays className="h-5 w-5 text-primary" /> Study activity
+          </h2>
+          <Card className="p-4 sm:p-5">
+            <HeatmapGrid counts={heatmap} />
+          </Card>
+        </section>
+
+        <section>
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
             <h2 className="font-display text-xl font-semibold flex items-center gap-2">
               <BookOpen className="h-5 w-5 text-primary" /> Your decks
             </h2>
-            {decks && decks.length > 0 && (
-              <span className="text-sm text-muted-foreground">{decks.length} deck{decks.length === 1 ? "" : "s"}</span>
-            )}
+            <div className="flex items-center gap-3">
+              {decks && decks.length > 0 && (
+                <div className="relative">
+                  <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search your decks..."
+                    className="pl-9 pr-8 w-56"
+                  />
+                  {search && (
+                    <button
+                      onClick={() => setSearch("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label="Clear"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              )}
+              {decks && decks.length > 0 && (
+                <span className="text-sm text-muted-foreground hidden sm:inline">
+                  {decks.length} deck{decks.length === 1 ? "" : "s"}
+                </span>
+              )}
+            </div>
           </div>
 
           {decks === null ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <div className="grid sm:grid-cols-2 gap-4">
+              {[0, 1].map((i) => (
+                <Card key={i} className="p-5 space-y-3">
+                  <div className="h-12 w-12 rounded-xl bg-secondary animate-pulse" />
+                  <div className="h-5 w-2/3 bg-secondary rounded animate-pulse" />
+                  <div className="h-2 w-full bg-secondary rounded animate-pulse" />
+                  <div className="h-8 w-full bg-secondary rounded animate-pulse" />
+                </Card>
+              ))}
             </div>
           ) : decks.length === 0 ? (
             <Card className="p-12 text-center">
@@ -144,9 +218,18 @@ export default function Dashboard() {
                 Drop a PDF below to create your first deck. We'll generate smart flashcards automatically.
               </p>
             </Card>
+          ) : filteredDecks && filteredDecks.length === 0 ? (
+            <Card className="p-10 text-center">
+              <p className="text-muted-foreground">
+                No decks match "<span className="font-medium text-foreground">{search}</span>"
+              </p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => setSearch("")}>
+                Clear search
+              </Button>
+            </Card>
           ) : (
             <div className="grid sm:grid-cols-2 gap-4">
-              {decks.map((d) => <DeckCard key={d.id} deck={d} />)}
+              {filteredDecks!.map((d) => <DeckCard key={d.id} deck={d} />)}
             </div>
           )}
         </section>

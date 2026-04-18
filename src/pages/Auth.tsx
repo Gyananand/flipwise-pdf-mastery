@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,20 +7,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { useState } from "react";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, ArrowLeft } from "lucide-react";
 
 export default function Auth() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [params] = useSearchParams();
+  const initialMode = params.get("mode") === "signup" ? "signup" : "signin";
+  const [mode, setMode] = useState<"signin" | "signup">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    document.title = "Sign in · FlipWise";
-  }, []);
+    document.title = mode === "signup" ? "Sign up · FlipWise" : "Sign in · FlipWise";
+  }, [mode]);
 
   if (loading) {
     return (
@@ -29,7 +30,10 @@ export default function Auth() {
       </div>
     );
   }
-  if (user) return <Navigate to="/dashboard" replace />;
+  // Already signed in (but not anonymous-only, since we want guests to be able to upgrade)
+  if (user && !(user as { is_anonymous?: boolean }).is_anonymous) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -60,19 +64,12 @@ export default function Auth() {
   async function handleGuest() {
     setBusy(true);
     try {
-      // Quick guest = anonymous-style account with random creds.
-      const guestEmail = `guest_${crypto.randomUUID().slice(0, 8)}@flipwise.app`;
-      const guestPwd = crypto.randomUUID();
-      const { error } = await supabase.auth.signUp({
-        email: guestEmail,
-        password: guestPwd,
-        options: { emailRedirectTo: `${window.location.origin}/dashboard` },
-      });
+      const { error } = await supabase.auth.signInAnonymously();
       if (error) throw error;
-      toast.success("Welcome, guest!");
+      toast.success("Welcome! You're in guest mode.");
       navigate("/dashboard");
     } catch (err) {
-      toast.error("Could not create guest account");
+      toast.error("Could not start guest session");
       console.error(err);
     } finally {
       setBusy(false);
@@ -83,15 +80,15 @@ export default function Auth() {
     <div className="min-h-screen grid lg:grid-cols-2">
       {/* Left visual */}
       <div className="hidden lg:flex flex-col justify-between p-12 gradient-hero text-primary-foreground">
-        <div className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2 group w-fit">
           <div className="h-9 w-9 rounded-xl bg-white/20 backdrop-blur grid place-items-center">
             <Sparkles className="h-5 w-5" />
           </div>
           <span className="font-display text-2xl font-semibold">FlipWise</span>
-        </div>
+        </Link>
         <div className="space-y-6 max-w-md">
           <h1 className="font-display text-5xl font-semibold leading-[1.05]">
-            Drop a PDF.<br/>Master it forever.
+            Drop a PDF.<br />Master it forever.
           </h1>
           <p className="text-lg text-primary-foreground/90">
             FlipWise turns any study material into smart flashcards that adapt to how well you know them.
@@ -107,7 +104,11 @@ export default function Auth() {
 
       {/* Right form */}
       <div className="flex items-center justify-center p-6 sm:p-12">
-        <div className="w-full max-w-md space-y-8">
+        <div className="w-full max-w-md space-y-6">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground story-link">
+            <ArrowLeft className="h-4 w-4" /> Back home
+          </Link>
+
           <div className="lg:hidden flex items-center gap-2">
             <div className="h-9 w-9 rounded-xl gradient-hero grid place-items-center">
               <Sparkles className="h-5 w-5 text-primary-foreground" />
@@ -177,7 +178,7 @@ export default function Auth() {
             Continue as guest
           </Button>
           <p className="text-xs text-center text-muted-foreground">
-            Guest accounts are created instantly. No email needed.
+            Guest sessions are instant. No email needed.
           </p>
         </div>
       </div>

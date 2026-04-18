@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [stats, setStats] = useState<{ xp_points: number; current_streak: number } | null>(null);
@@ -37,13 +37,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   async function handleLogout() {
     await supabase.auth.signOut();
     toast.success("Signed out");
-    navigate("/auth");
+    navigate("/");
   }
 
   const xp = stats?.xp_points ?? 0;
   const streak = stats?.current_streak ?? 0;
   const { current, next, progress } = levelForXp(xp);
-  const initial = user?.email?.[0]?.toUpperCase() ?? "?";
+  const displayName = isGuest ? "Guest" : user?.email ?? "—";
+  const initial = isGuest ? "G" : (user?.email?.[0]?.toUpperCase() ?? "?");
 
   return (
     <div className="min-h-screen bg-background">
@@ -78,7 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="truncate">{user?.email}</DropdownMenuLabel>
+                <DropdownMenuLabel className="truncate">{displayName}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate("/dashboard")}>
                   <LayoutDashboard className="h-4 w-4 mr-2" /> Dashboard
