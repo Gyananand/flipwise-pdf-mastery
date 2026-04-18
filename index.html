@@ -16,6 +16,14 @@
   </head>
 
   <body>
+    <script>
+      // Apply persisted theme before paint to avoid FOUC
+      try {
+        if (localStorage.getItem('flipwise:theme') === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
