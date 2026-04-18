@@ -54,6 +54,19 @@ export default function StudySession() {
   const loadQueue = useCallback(async () => {
     if (!user) return;
     const isAll = id === "all";
+
+    // Read user prefs (set in /settings)
+    let newPerSession = 10;
+    let sessionCap = 20;
+    try {
+      const raw = localStorage.getItem("flipwise:prefs");
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (typeof p.newPerSession === "number") newPerSession = p.newPerSession;
+        if (typeof p.dailyGoal === "number") sessionCap = p.dailyGoal;
+      }
+    } catch { /* ignore */ }
+
     let query = supabase
       .from("cards")
       .select("id, question, answer, topic_tag, mastery_state, due_date, deck_id, decks!inner(user_id)")
@@ -71,17 +84,17 @@ export default function StudySession() {
     } else if (mode === "shuffle") {
       cards = [...cards].sort(() => Math.random() - 0.5);
     } else {
-      // due mode
+      // due mode (default)
       const due = cards.filter((c) => new Date(c.due_date).getTime() <= now);
-      const newOnes = cards.filter((c) => c.mastery_state === "new").slice(0, 10);
+      const newOnes = cards.filter((c) => c.mastery_state === "new").slice(0, newPerSession);
       // merge unique
       const map = new Map<string, Card>();
       [...due, ...newOnes].forEach((c) => map.set(c.id, c));
       cards = Array.from(map.values());
     }
 
-    // session cap
-    cards = cards.slice(0, 20);
+    // session cap from settings
+    cards = cards.slice(0, sessionCap);
     // shuffle queue order for due/all (skip if explicit shuffle already done)
     if (mode !== "shuffle") cards.sort(() => Math.random() - 0.5);
 
@@ -279,9 +292,16 @@ export default function StudySession() {
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Exit">
             <X className="h-5 w-5" />
           </Button>
-          <div className="flex-1">
-            <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-              <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+          <div className="flex-1 flex items-center gap-3 min-w-0">
+            {id === "all" && (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary-soft text-primary shrink-0">
+                All Decks
+              </span>
+            )}
+            <div className="flex-1">
+              <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+              </div>
             </div>
           </div>
           <div className="text-sm text-muted-foreground font-mono shrink-0">
