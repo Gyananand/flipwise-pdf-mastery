@@ -131,6 +131,8 @@ export default function Dashboard() {
           <StatCard label="Current streak" value={streak} hint={streak === 1 ? "day" : "days"} accent="hsl(var(--warning))" />
         </div>
 
+        <TodaysGoal heatmap={heatmap} />
+
         {totalDue > 0 && (
           <Card className="overflow-hidden shadow-elevated">
             <div className="p-6 gradient-hero text-primary-foreground flex flex-col sm:flex-row sm:items-center justify-between gap-4">
