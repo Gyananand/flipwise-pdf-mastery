@@ -170,7 +170,47 @@
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
+@keyframes xp-float {
+  0%   { opacity: 0; transform: translate(-50%, -30%) scale(0.6); }
+  20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -180%) scale(1); }
+}
+@keyframes celebrate {
+  0%   { transform: scale(1); filter: brightness(1); }
+  40%  { transform: scale(1.06); filter: brightness(1.25) saturate(1.4); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+@keyframes drift {
+  0%   { transform: translate(0, 0) rotate(var(--tw-rotate, 0deg)); }
+  50%  { transform: translate(10px, -16px) rotate(var(--tw-rotate, 0deg)); }
+  100% { transform: translate(0, 0) rotate(var(--tw-rotate, 0deg)); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--warning) / 0.5); }
+  50%      { box-shadow: 0 0 0 8px hsl(var(--warning) / 0); }
+}
+@keyframes pulse-cta {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4); }
+  50%      { box-shadow: 0 0 0 14px hsl(var(--primary) / 0); }
+}
+@keyframes level-pop {
+  0%   { transform: scale(0.5) rotate(-20deg); opacity: 0; }
+  60%  { transform: scale(1.15) rotate(8deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); }
+}
+@keyframes combo-in {
+  0%   { transform: translateY(-6px) scale(0.8); opacity: 0; }
+  60%  { transform: translateY(0) scale(1.15); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
 .animate-fade-in { animation: fade-in 0.4s ease-out both; }
 .animate-slide-in-right { animation: slide-in-right 0.3s ease-out both; }
 .animate-slide-out-left { animation: slide-out-left 0.3s ease-out both; }
 .animate-scale-in { animation: scale-in 0.25s ease-out both; }
+.animate-xp-float { animation: xp-float 1.4s ease-out both; }
+.animate-celebrate { animation: celebrate 0.6s ease-out both; }
+.animate-drift { animation: drift 12s ease-in-out infinite; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-pulse-cta { animation: pulse-cta 2.4s ease-in-out infinite; }
+.animate-level-pop { animation: level-pop 0.7s cubic-bezier(0.22, 1.4, 0.4, 1) both; }
+.animate-combo-in { animation: combo-in 0.4s cubic-bezier(0.22, 1.4, 0.4, 1) both; }
