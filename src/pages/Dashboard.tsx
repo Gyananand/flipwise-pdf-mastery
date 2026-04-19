@@ -253,3 +253,47 @@ function greeting() {
   if (h < 18) return "Good afternoon";
   return "Good evening";
 }
+
+function TodaysGoal({ heatmap }: { heatmap: Record<string, number> }) {
+  const today = format(new Date(), "yyyy-MM-dd");
+  const studied = heatmap[today] ?? 0;
+  let goal = 10;
+  try {
+    const raw = localStorage.getItem("flipwise:prefs");
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (typeof p.dailyGoal === "number") goal = p.dailyGoal;
+    }
+  } catch { /* ignore */ }
+  const pct = Math.min(100, Math.round((studied / goal) * 100));
+  const done = studied >= goal;
+
+  return (
+    <Card className="p-4 sm:p-5 shadow-card">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div>
+          <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Today's goal</div>
+          <div className="font-display text-base font-semibold mt-0.5">
+            {done ? "🎯 Goal reached — nice work!" : `Study ${goal} cards today`}
+          </div>
+        </div>
+        <div className="font-mono text-sm tabular-nums text-muted-foreground">
+          <span className={done ? "text-success font-semibold" : "text-foreground font-semibold"}>{studied}</span>
+          <span className="opacity-50"> / {goal}</span>
+        </div>
+      </div>
+      <div className="h-2 rounded-full bg-secondary overflow-hidden">
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: `${pct}%`,
+            background: done
+              ? "linear-gradient(90deg, hsl(var(--success)), hsl(var(--success) / 0.7))"
+              : "var(--gradient-hero)",
+            transition: "width 1100ms cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+        />
+      </div>
+    </Card>
+  );
+}
