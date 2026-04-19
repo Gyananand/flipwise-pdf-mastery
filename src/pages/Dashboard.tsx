@@ -103,6 +103,18 @@ export default function Dashboard() {
     load();
   }, [load]);
 
+  // Refresh deck/mastery data whenever user returns to this tab/page
+  useEffect(() => {
+    const onFocus = () => load();
+    const onVisible = () => { if (document.visibilityState === "visible") load(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [load]);
+
   const totalDue = stats.due_today;
 
   const filteredDecks = useMemo(() => {

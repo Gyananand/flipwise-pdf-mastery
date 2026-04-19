@@ -9,7 +9,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Moon, Sun, KeyRound, LogOut, UserPlus, User } from "lucide-react";
+import { Loader2, Moon, Sun, LogOut, UserPlus, User } from "lucide-react";
 
 const PREFS_KEY = "flipwise:prefs";
 type Prefs = { dailyGoal: number; newPerSession: number };
@@ -147,24 +147,6 @@ export default function Settings() {
           </div>
         </Card>
 
-        {/* AI configuration */}
-        <Card className="p-6 space-y-3">
-          <div className="flex items-center gap-2">
-            <KeyRound className="h-4 w-4 text-primary" />
-            <h2 className="font-display font-semibold">AI configuration</h2>
-          </div>
-          <div className="rounded-lg border border-primary/20 bg-primary-soft p-4 text-sm">
-            <div className="font-medium text-primary">Using: Lovable AI Gateway</div>
-            <p className="text-foreground/80 mt-1">
-              Card generation is powered by Gemini 2.5 Flash through the Lovable AI Gateway — no API key needed.
-              Your study material never leaves the secure backend.
-            </p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Want to use your own Gemini key? Add <code className="font-mono px-1 py-0.5 rounded bg-secondary">GEMINI_API_KEY</code>{" "}
-            in your backend secrets and the edge function will pick it up automatically (coming soon).
-          </p>
-        </Card>
       </div>
     </AppShell>
   );
