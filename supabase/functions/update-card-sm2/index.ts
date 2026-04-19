@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     );
 
     let mastery_state: "new" | "learning" | "review" | "mastered" = "new";
-    if (interval > 21 && ease_factor > 2.3) mastery_state = "mastered";
+    if (repetitions >= 3 && ease_factor >= 2.3 && interval >= 21) mastery_state = "mastered";
     else if (repetitions >= 2) mastery_state = "review";
     else if (repetitions >= 1) mastery_state = "learning";
     else mastery_state = "new";

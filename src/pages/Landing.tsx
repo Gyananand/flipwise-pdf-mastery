@@ -9,7 +9,6 @@ import {
   Sparkles, Loader2, Brain, Repeat2, TrendingUp,
   Upload, Wand2, GraduationCap, ArrowRight,
 } from "lucide-react";
-import { FloatingCardsBg } from "@/components/FloatingCardsBg";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function Landing() {
@@ -63,7 +62,6 @@ export default function Landing() {
 
       {/* Hero */}
       <section className="relative container max-w-5xl pt-12 sm:pt-20 pb-16 text-center animate-fade-in">
-        <FloatingCardsBg />
         <div className="inline-flex items-center gap-2 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary mb-6">
           <Sparkles className="h-3.5 w-3.5" /> AI-powered spaced repetition
         </div>
