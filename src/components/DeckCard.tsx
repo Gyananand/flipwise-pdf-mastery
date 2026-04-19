@@ -4,6 +4,8 @@ import { MasteryBadge } from "@/components/MasteryBadge";
 import { Button } from "@/components/ui/button";
 import { Play } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useEffect, useState } from "react";
+import { CircularProgress } from "@/components/CircularProgress";
 
 export type DeckSummary = {
   id: string;
@@ -19,14 +21,30 @@ export type DeckSummary = {
   mastered_count: number;
 };
 
+/** Build a unique gradient per deck, biased to the deck's accent color. */
+function gradientFor(color: string) {
+  // Hash the color to pick a complementary hue offset.
+  let h = 0;
+  for (let i = 0; i < color.length; i++) h = (h * 31 + color.charCodeAt(i)) >>> 0;
+  const angle = 90 + (h % 80); // 90-170deg
+  return `linear-gradient(${angle}deg, ${color}, hsl(var(--primary)))`;
+}
+
 export function DeckCard({ deck }: { deck: DeckSummary }) {
   const masteryPct = deck.total_cards > 0
     ? Math.round((deck.mastered_count / deck.total_cards) * 100)
     : 0;
 
+  // Animate the linear bar fill on mount
+  const [barWidth, setBarWidth] = useState(0);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setBarWidth(masteryPct));
+    return () => cancelAnimationFrame(id);
+  }, [masteryPct]);
+
   return (
     <Card className="group overflow-hidden hover-lift bg-card">
-      <div className="h-1.5" style={{ background: deck.color }} />
+      <div className="h-1.5" style={{ backgroundImage: gradientFor(deck.color) }} />
       <div className="p-5 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
@@ -47,17 +65,24 @@ export function DeckCard({ deck }: { deck: DeckSummary }) {
               </p>
             </div>
           </div>
+          <CircularProgress value={masteryPct} size={48} stroke={5} color={deck.color}>
+            <span style={{ color: deck.color }}>{masteryPct}%</span>
+          </CircularProgress>
         </div>
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Mastery</span>
-            <span className="font-mono font-medium">{masteryPct}%</span>
+            <span className="font-mono font-medium tabular-nums">{masteryPct}%</span>
           </div>
           <div className="h-2 rounded-full bg-secondary overflow-hidden">
             <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${masteryPct}%`, background: deck.color }}
+              className="h-full rounded-full"
+              style={{
+                width: `${barWidth}%`,
+                backgroundImage: gradientFor(deck.color),
+                transition: "width 1100ms cubic-bezier(0.22, 1, 0.36, 1)",
+              }}
             />
           </div>
         </div>
