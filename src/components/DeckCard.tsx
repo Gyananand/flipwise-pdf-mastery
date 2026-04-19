@@ -6,6 +6,7 @@ import { Play } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect, useState } from "react";
 import { CircularProgress } from "@/components/CircularProgress";
+import { computeProgress } from "@/lib/progress";
 
 export type DeckSummary = {
   id: string;
@@ -18,6 +19,7 @@ export type DeckSummary = {
   due_count: number;
   new_count: number;
   learning_count: number;
+  review_count: number;
   mastered_count: number;
 };
 
@@ -31,16 +33,14 @@ function gradientFor(color: string) {
 }
 
 export function DeckCard({ deck }: { deck: DeckSummary }) {
-  const masteryPct = deck.total_cards > 0
-    ? Math.round((deck.mastered_count / deck.total_cards) * 100)
-    : 0;
+  const progressPct = computeProgress(deck);
 
   // Animate the linear bar fill on mount
   const [barWidth, setBarWidth] = useState(0);
   useEffect(() => {
-    const id = requestAnimationFrame(() => setBarWidth(masteryPct));
+    const id = requestAnimationFrame(() => setBarWidth(progressPct));
     return () => cancelAnimationFrame(id);
-  }, [masteryPct]);
+  }, [progressPct]);
 
   return (
     <Card className="group overflow-hidden hover-lift bg-card">
@@ -65,15 +65,15 @@ export function DeckCard({ deck }: { deck: DeckSummary }) {
               </p>
             </div>
           </div>
-          <CircularProgress value={masteryPct} size={48} stroke={5} color={deck.color}>
-            <span style={{ color: deck.color }}>{masteryPct}%</span>
+          <CircularProgress value={progressPct} size={48} stroke={5} color={deck.color}>
+            <span style={{ color: deck.color }}>{progressPct}%</span>
           </CircularProgress>
         </div>
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Mastery</span>
-            <span className="font-mono font-medium tabular-nums">{masteryPct}%</span>
+            <span className="text-muted-foreground">Progress</span>
+            <span className="font-mono font-medium tabular-nums">{progressPct}%</span>
           </div>
           <div className="h-2 rounded-full bg-secondary overflow-hidden">
             <div

@@ -16,6 +16,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+import { computeProgress } from "@/lib/progress";
 
 type Deck = {
   id: string; name: string; emoji: string; color: string;
@@ -101,8 +102,13 @@ export default function DeckDetail() {
     );
   }
 
-  const total = cards.length || 1;
-  const masteredPct = Math.round((counts.mastered / total) * 100);
+  const progressPct = computeProgress({
+    new_count: counts.new,
+    learning_count: counts.learning,
+    review_count: counts.review,
+    mastered_count: counts.mastered,
+    total_cards: cards.length,
+  });
 
   return (
     <AppShell>
@@ -157,7 +163,7 @@ export default function DeckDetail() {
           <StatCard label="New" value={counts.new} accent="hsl(var(--info))" />
           <StatCard label="Learning" value={counts.learning} accent="hsl(var(--warning))" />
           <StatCard label="Review" value={counts.review} accent="hsl(var(--primary))" />
-          <StatCard label="Mastered" value={`${counts.mastered}`} hint={`${masteredPct}%`} accent="hsl(var(--success))" />
+          <StatCard label="Mastered" value={`${counts.mastered}`} hint={`${progressPct}% progress`} accent="hsl(var(--success))" />
         </div>
 
         <div className="flex flex-wrap gap-3">

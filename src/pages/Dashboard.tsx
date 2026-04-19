@@ -86,6 +86,7 @@ export default function Dashboard() {
         due_count: mine.filter((c) => new Date(c.due_date).getTime() <= now).length,
         new_count: mine.filter((c) => c.mastery_state === "new").length,
         learning_count: mine.filter((c) => c.mastery_state === "learning").length,
+        review_count: mine.filter((c) => c.mastery_state === "review").length,
         mastered_count: mine.filter((c) => c.mastery_state === "mastered").length,
       };
     });
