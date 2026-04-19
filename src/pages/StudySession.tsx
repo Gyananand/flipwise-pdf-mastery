@@ -5,10 +5,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { TopicTag } from "@/components/TopicTag";
-import { Loader2, X, Sparkles, Keyboard, ArrowRight } from "lucide-react";
+import { Loader2, X, Sparkles, Keyboard, ArrowRight, Flame } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { cn } from "@/lib/utils";
+import { spawnXP } from "@/components/FloatingXP";
+import { LevelUpModal } from "@/components/LevelUpModal";
+import { LEVELS, levelForXp } from "@/lib/levels";
 
 type Card = {
   id: string;
@@ -34,6 +37,15 @@ const RATING_BG: Record<string, string> = {
   success: "bg-success/10 hover:bg-success/20 text-success border-success/30",
 };
 
+const MOTIVATIONS = [
+  "Keep going! 💪",
+  "You're on fire! 🔥",
+  "Almost there! 🎯",
+  "Stay sharp! ⚡",
+  "Locked in! 🧠",
+  "Crushing it! 🚀",
+];
+
 export default function StudySession() {
   const { id } = useParams<{ id: string }>();
   const [params] = useSearchParams();
@@ -48,14 +60,20 @@ export default function StudySession() {
   const [tally, setTally] = useState({ again: 0, hard: 0, good: 0, easy: 0 });
   const [done, setDone] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [comboPulse, setComboPulse] = useState(0); // re-key to retrigger animation
+  const [easyFlash, setEasyFlash] = useState(false);
+  const [motivation, setMotivation] = useState<string | null>(null);
+  const [levelUp, setLevelUp] = useState<{ name: string; threshold: number } | null>(null);
+
   const startTimeRef = useRef<number>(Date.now());
   const submittingRef = useRef(false);
+  const startXpRef = useRef<number>(0);
 
   const loadQueue = useCallback(async () => {
     if (!user) return;
     const isAll = id === "all";
 
-    // Read user prefs (set in /settings)
     let newPerSession = 10;
     let sessionCap = 20;
     try {
@@ -84,25 +102,28 @@ export default function StudySession() {
     } else if (mode === "shuffle") {
       cards = [...cards].sort(() => Math.random() - 0.5);
     } else {
-      // due mode (default)
       const due = cards.filter((c) => new Date(c.due_date).getTime() <= now);
       const newOnes = cards.filter((c) => c.mastery_state === "new").slice(0, newPerSession);
-      // merge unique
       const map = new Map<string, Card>();
       [...due, ...newOnes].forEach((c) => map.set(c.id, c));
       cards = Array.from(map.values());
     }
 
-    // session cap from settings
     cards = cards.slice(0, sessionCap);
-    // shuffle queue order for due/all (skip if explicit shuffle already done)
     if (mode !== "shuffle") cards.sort(() => Math.random() - 0.5);
+
+    // Snapshot current XP so we can detect level-ups during this session
+    const { data: stats } = await supabase
+      .from("user_stats").select("xp_points").eq("user_id", user.id).maybeSingle();
+    startXpRef.current = stats?.xp_points ?? 0;
 
     setQueue(cards);
     setIdx(0);
     setFlipped(false);
     setTally({ again: 0, hard: 0, good: 0, easy: 0 });
     setDone(false);
+    setCombo(0);
+    setMotivation(null);
     startTimeRef.current = Date.now();
   }, [user, id, mode]);
 
@@ -111,6 +132,16 @@ export default function StudySession() {
 
   const current = queue?.[idx] ?? null;
 
+  function checkLevelUp(prevXp: number, newXp: number) {
+    const before = levelForXp(prevXp).current.name;
+    const after = levelForXp(newXp).current;
+    if (before !== after.name) {
+      // Find the threshold the user just crossed
+      const crossed = LEVELS.find((l) => l.name === after.name);
+      setLevelUp({ name: after.name, threshold: crossed?.min ?? newXp });
+    }
+  }
+
   const submitRating = useCallback(async (rating: 0 | 1 | 2 | 3) => {
     if (!current || submittingRef.current || !flipped) return;
     submittingRef.current = true;
@@ -118,14 +149,57 @@ export default function StudySession() {
     const key = (["again", "hard", "good", "easy"] as const)[rating];
     setTally((t) => ({ ...t, [key]: t[key] + 1 }));
 
-    // call edge function (don't block UI on response except for XP totals)
+    // Combo logic — Good/Easy extends, Again/Hard breaks
+    if (rating >= 2) {
+      setCombo((c) => {
+        const next = c + 1;
+        setComboPulse((p) => p + 1);
+        return next;
+      });
+    } else {
+      setCombo(0);
+    }
+
+    // Easy celebration: scale + color flash
+    if (rating === 3) {
+      setEasyFlash(true);
+      setTimeout(() => setEasyFlash(false), 600);
+    }
+
+    // Random motivation between cards
+    if (Math.random() < 0.35) {
+      setMotivation(MOTIVATIONS[Math.floor(Math.random() * MOTIVATIONS.length)]);
+      setTimeout(() => setMotivation(null), 1400);
+    }
+
     supabase.functions
       .invoke("update-card-sm2", { body: { card_id: current.id, rating } })
       .then(({ data, error }) => {
         if (error) { console.error(error); return; }
-        if (data?.xp_gained) setXpEarned((x) => x + data.xp_gained);
+        if (data?.xp_gained) {
+          setXpEarned((x) => x + data.xp_gained);
+          // Floating +XP near the rating buttons
+          spawnXP(data.xp_gained, window.innerWidth / 2, window.innerHeight - 180);
+          // Level-up check
+          const prev = startXpRef.current + (xpEarned);
+          const next = prev + data.xp_gained;
+          startXpRef.current = startXpRef.current; // keep snapshot stable
+          checkLevelUp(prev, next);
+        }
         if (data?.became_mastered) {
-          toast.success("🎯 Card mastered!", { duration: 1800 });
+          // Golden mastered toast + particle burst
+          toast.success("⭐ Mastered!", {
+            description: "This card joined your mastered collection.",
+            duration: 2200,
+            className: "border-warning/40 bg-gradient-to-r from-warning/15 to-warning/5",
+          });
+          confetti({
+            particleCount: 60,
+            spread: 60,
+            origin: { x: 0.5, y: 0.4 },
+            colors: ["#FDE047", "#F59E0B", "#FBBF24", "#7C3AED"],
+            scalar: 0.9,
+          });
         }
       });
 
@@ -141,7 +215,8 @@ export default function StudySession() {
       }
       submittingRef.current = false;
     }, 280);
-  }, [current, flipped, idx, queue]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, flipped, idx, queue, xpEarned]);
 
   const finalizeSession = useCallback(async () => {
     if (!user || !queue) return;
@@ -161,19 +236,21 @@ export default function StudySession() {
       duration_seconds: duration,
     });
 
-    // Bonus XP for completing session
     const { data: stats } = await supabase
       .from("user_stats").select("xp_points, total_sessions").eq("user_id", user.id).maybeSingle();
     if (stats) {
+      const prevXp = stats.xp_points ?? 0;
+      const newXp = prevXp + 10;
       await supabase.from("user_stats").update({
-        xp_points: (stats.xp_points ?? 0) + 10,
+        xp_points: newXp,
         total_sessions: (stats.total_sessions ?? 0) + 1,
       }).eq("user_id", user.id);
       setXpEarned((x) => x + 10);
+      spawnXP(10, window.innerWidth / 2, window.innerHeight / 2);
+      checkLevelUp(prevXp, newXp);
     }
 
     if (success >= 0.8) {
-      // Confetti!
       const launch = (origin: { x: number; y: number }) =>
         confetti({ particleCount: 80, spread: 70, origin, colors: ["#7C3AED", "#EDE9FE", "#059669", "#D97706"] });
       launch({ x: 0.2, y: 0.6 });
@@ -185,7 +262,6 @@ export default function StudySession() {
     setTransitioning(false);
   }, [user, queue, tally, id]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (done) return;
@@ -235,166 +311,205 @@ export default function StudySession() {
     const seconds = Math.floor(((Date.now() - startTimeRef.current) % 60000) / 1000);
 
     return (
-      <div className="min-h-screen grid place-items-center p-6 bg-background">
-        <Card className="w-full max-w-lg p-8 sm:p-10 text-center shadow-elevated animate-scale-in">
-          <div className="mx-auto h-14 w-14 rounded-2xl gradient-hero grid place-items-center mb-4">
-            <Sparkles className="h-7 w-7 text-primary-foreground" />
-          </div>
-          <h1 className="font-display text-3xl font-semibold">{message}</h1>
-          <p className="text-muted-foreground mt-1">Session complete</p>
+      <>
+        <LevelUpModal
+          open={!!levelUp}
+          onOpenChange={(v) => !v && setLevelUp(null)}
+          levelName={levelUp?.name ?? ""}
+          threshold={levelUp?.threshold ?? 0}
+        />
+        <div className="min-h-screen grid place-items-center p-6 bg-background">
+          <Card className="w-full max-w-lg p-8 sm:p-10 text-center shadow-elevated animate-scale-in">
+            <div className="mx-auto h-14 w-14 rounded-2xl gradient-hero grid place-items-center mb-4">
+              <Sparkles className="h-7 w-7 text-primary-foreground" />
+            </div>
+            <h1 className="font-display text-3xl font-semibold">{message}</h1>
+            <p className="text-muted-foreground mt-1">Session complete</p>
 
-          <div className={cn("font-display text-6xl font-semibold mt-6", successColor)}>
-            {success}%
-          </div>
-          <p className="text-sm text-muted-foreground">success rate</p>
+            <div className={cn("font-display text-6xl font-semibold mt-6 tabular-nums", successColor)}>
+              {success}%
+            </div>
+            <p className="text-sm text-muted-foreground">success rate</p>
 
-          <div className="grid grid-cols-4 gap-3 mt-6">
-            {(["again", "hard", "good", "easy"] as const).map((k, i) => (
-              <div key={k} className="rounded-xl border border-border p-3">
-                <div className="text-xl">{RATINGS[i].emoji}</div>
-                <div className="font-mono text-xl font-semibold mt-1">{tally[k]}</div>
-                <div className="text-xs text-muted-foreground capitalize">{k}</div>
+            <div className="grid grid-cols-4 gap-3 mt-6">
+              {(["again", "hard", "good", "easy"] as const).map((k, i) => (
+                <div key={k} className="rounded-xl border border-border p-3">
+                  <div className="text-xl">{RATINGS[i].emoji}</div>
+                  <div className="font-mono text-xl font-semibold mt-1 tabular-nums">{tally[k]}</div>
+                  <div className="text-xs text-muted-foreground capitalize">{k}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
+              <div className="rounded-lg bg-secondary p-3">
+                <div className="text-muted-foreground text-xs">Time</div>
+                <div className="font-mono font-semibold">{minutes}m {seconds}s</div>
               </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
-            <div className="rounded-lg bg-secondary p-3">
-              <div className="text-muted-foreground text-xs">Time</div>
-              <div className="font-mono font-semibold">{minutes}m {seconds}s</div>
+              <div className="rounded-lg bg-primary-soft p-3">
+                <div className="text-primary/80 text-xs">XP earned</div>
+                <div className="font-mono font-semibold text-primary">+{xpEarned}</div>
+              </div>
             </div>
-            <div className="rounded-lg bg-primary-soft p-3">
-              <div className="text-primary/80 text-xs">XP earned</div>
-              <div className="font-mono font-semibold text-primary">+{xpEarned}</div>
-            </div>
-          </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 mt-8">
-            <Button onClick={loadQueue} className="flex-1">Study again</Button>
-            <Button asChild variant="outline" className="flex-1">
-              <Link to={id !== "all" ? `/deck/${id}` : "/dashboard"}>
-                {id !== "all" ? "Back to deck" : "Back to dashboard"}
-              </Link>
-            </Button>
-          </div>
-        </Card>
-      </div>
+            <div className="flex flex-col sm:flex-row gap-2 mt-8">
+              <Button onClick={loadQueue} className="flex-1">Study again</Button>
+              <Button asChild variant="outline" className="flex-1">
+                <Link to={id !== "all" ? `/deck/${id}` : "/dashboard"}>
+                  {id !== "all" ? "Back to deck" : "Back to dashboard"}
+                </Link>
+              </Button>
+            </div>
+          </Card>
+        </div>
+      </>
     );
   }
 
   const progress = ((idx) / queue.length) * 100;
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Top bar */}
-      <header className="border-b border-border bg-background/80 backdrop-blur sticky top-0 z-20">
-        <div className="container max-w-3xl flex items-center gap-4 h-14">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Exit">
-            <X className="h-5 w-5" />
-          </Button>
-          <div className="flex-1 flex items-center gap-3 min-w-0">
-            {id === "all" && (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary-soft text-primary shrink-0">
-                All Decks
-              </span>
-            )}
-            <div className="flex-1">
-              <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-                <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+    <>
+      <LevelUpModal
+        open={!!levelUp}
+        onOpenChange={(v) => !v && setLevelUp(null)}
+        levelName={levelUp?.name ?? ""}
+        threshold={levelUp?.threshold ?? 0}
+      />
+      <div className="min-h-screen flex flex-col bg-background">
+        {/* Top bar */}
+        <header className="border-b border-border bg-background/80 backdrop-blur sticky top-0 z-20">
+          <div className="container max-w-3xl flex items-center gap-4 h-14">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Exit">
+              <X className="h-5 w-5" />
+            </Button>
+            <div className="flex-1 flex items-center gap-3 min-w-0">
+              {id === "all" && (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary-soft text-primary shrink-0">
+                  All Decks
+                </span>
+              )}
+              <div className="flex-1">
+                <div className="h-2 rounded-full bg-secondary overflow-hidden">
+                  <div
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${progress}%`,
+                      background: "var(--gradient-hero)",
+                      boxShadow: progress > 0 ? "0 0 12px hsl(var(--primary) / 0.4)" : undefined,
+                    }}
+                  />
+                </div>
               </div>
             </div>
+            <div className="text-sm text-muted-foreground font-mono shrink-0 tabular-nums">
+              {idx + 1} / {queue.length}
+            </div>
           </div>
-          <div className="text-sm text-muted-foreground font-mono shrink-0">
-            {idx + 1} / {queue.length}
+
+          {/* Combo + motivation strip */}
+          <div className="container max-w-3xl h-7 flex items-center justify-center gap-3 text-xs">
+            {combo >= 3 && (
+              <span
+                key={comboPulse}
+                className="inline-flex items-center gap-1 rounded-full bg-warning/15 text-warning border border-warning/30 px-2.5 py-0.5 font-display font-semibold animate-combo-in"
+              >
+                <Flame className="h-3 w-3" /> {combo}x Combo!
+              </span>
+            )}
+            {motivation && (
+              <span className="font-medium text-primary animate-fade-in">{motivation}</span>
+            )}
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Card */}
-      <div className="flex-1 container max-w-3xl py-8 sm:py-12 flex flex-col items-center justify-center">
-        <div
-          className={cn(
-            "w-full perspective-1200",
-            transitioning && "animate-slide-out-left",
-            !transitioning && "animate-slide-in-right"
-          )}
-          key={current?.id}
-        >
-          <button
-            onClick={() => setFlipped((f) => !f)}
-            className="w-full text-left preserve-3d relative transition-transform duration-500 outline-none"
-            style={{ transform: flipped ? "rotateY(180deg)" : "none", minHeight: "min(60vh, 480px)" }}
-            aria-label="Flip card"
-          >
-            {/* Front */}
-            <Card className="absolute inset-0 backface-hidden p-6 sm:p-10 flex flex-col shadow-flashcard">
-              <div className="flex items-center justify-between">
-                <TopicTag tag={current?.topic_tag ?? "Concept"} />
-                <span className="text-xs uppercase tracking-wider text-muted-foreground">Question</span>
-              </div>
-              <div className="flex-1 grid place-items-center py-6">
-                <p className="font-display text-2xl sm:text-3xl text-center leading-snug">
-                  {current?.question}
-                </p>
-              </div>
-              <div className="text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-                <Keyboard className="h-3.5 w-3.5" /> Tap or press <kbd className="font-mono px-1.5 py-0.5 rounded border border-border bg-secondary">Space</kbd> to reveal
-              </div>
-            </Card>
-            {/* Back */}
-            <Card className="absolute inset-0 backface-hidden rotate-y-180 p-6 sm:p-10 flex flex-col shadow-flashcard bg-primary-soft border-primary/20">
-              <div className="flex items-center justify-between">
-                <TopicTag tag={current?.topic_tag ?? "Concept"} className="!bg-primary !text-primary-foreground" />
-                <span className="text-xs uppercase tracking-wider text-primary/70">Answer</span>
-              </div>
-              <div className="flex-1 grid place-items-center py-6">
-                <p className="text-xl sm:text-2xl text-center leading-relaxed text-foreground whitespace-pre-wrap">
-                  {current?.answer}
-                </p>
-              </div>
-              <div className="text-center text-xs text-primary/70 flex items-center justify-center gap-2">
-                <ArrowRight className="h-3.5 w-3.5" /> Rate how well you knew it
-              </div>
-            </Card>
-          </button>
-        </div>
-
-        {/* Rating buttons */}
-        <div className="w-full mt-8">
+        {/* Card */}
+        <div className="flex-1 container max-w-3xl py-8 sm:py-12 flex flex-col items-center justify-center">
           <div
             className={cn(
-              "grid grid-cols-2 sm:grid-cols-4 gap-3 transition-opacity duration-200",
-              flipped ? "opacity-100" : "opacity-30 pointer-events-none"
+              "w-full perspective-1200",
+              transitioning && "animate-slide-out-left",
+              !transitioning && "animate-slide-in-right",
+              easyFlash && "animate-celebrate"
             )}
+            key={current?.id}
           >
-            {RATINGS.map((r) => (
-              <button
-                key={r.rating}
-                onClick={() => submitRating(r.rating)}
-                disabled={!flipped}
-                className={cn(
-                  "rounded-xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-elevated",
-                  RATING_BG[r.color]
-                )}
-              >
+            <button
+              onClick={() => setFlipped((f) => !f)}
+              className="w-full text-left preserve-3d relative transition-transform duration-500 outline-none"
+              style={{ transform: flipped ? "rotateY(180deg)" : "none", minHeight: "min(60vh, 480px)" }}
+              aria-label="Flip card"
+            >
+              {/* Front */}
+              <Card className="absolute inset-0 backface-hidden p-6 sm:p-10 flex flex-col shadow-flashcard">
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl">{r.emoji}</span>
-                  <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-current/20 opacity-60">
-                    {r.key}
-                  </kbd>
+                  <TopicTag tag={current?.topic_tag ?? "Concept"} />
+                  <span className="text-xs uppercase tracking-wider text-muted-foreground">Question</span>
                 </div>
-                <div className="mt-2 font-display font-semibold">{r.label}</div>
-                <div className="text-xs opacity-80">{r.hint}</div>
-              </button>
-            ))}
+                <div className="flex-1 grid place-items-center py-6">
+                  <p className="font-display text-2xl sm:text-3xl text-center leading-snug">
+                    {current?.question}
+                  </p>
+                </div>
+                <div className="text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                  <Keyboard className="h-3.5 w-3.5" /> Tap or press <kbd className="font-mono px-1.5 py-0.5 rounded border border-border bg-secondary">Space</kbd> to reveal
+                </div>
+              </Card>
+              {/* Back */}
+              <Card className="absolute inset-0 backface-hidden rotate-y-180 p-6 sm:p-10 flex flex-col shadow-flashcard bg-primary-soft border-primary/20">
+                <div className="flex items-center justify-between">
+                  <TopicTag tag={current?.topic_tag ?? "Concept"} className="!bg-primary !text-primary-foreground" />
+                  <span className="text-xs uppercase tracking-wider text-primary/70">Answer</span>
+                </div>
+                <div className="flex-1 grid place-items-center py-6">
+                  <p className="text-xl sm:text-2xl text-center leading-relaxed text-foreground whitespace-pre-wrap">
+                    {current?.answer}
+                  </p>
+                </div>
+                <div className="text-center text-xs text-primary/70 flex items-center justify-center gap-2">
+                  <ArrowRight className="h-3.5 w-3.5" /> Rate how well you knew it
+                </div>
+              </Card>
+            </button>
           </div>
-          <p className="text-center text-xs text-muted-foreground mt-4">
-            <kbd className="font-mono px-1.5 py-0.5 rounded border border-border">Space</kbd> flip ·
-            <kbd className="font-mono px-1.5 py-0.5 rounded border border-border ml-1">1-4</kbd> rate ·
-            <kbd className="font-mono px-1.5 py-0.5 rounded border border-border ml-1">Esc</kbd> exit
-          </p>
+
+          {/* Rating buttons */}
+          <div className="w-full mt-8">
+            <div
+              className={cn(
+                "grid grid-cols-2 sm:grid-cols-4 gap-3 transition-opacity duration-200",
+                flipped ? "opacity-100" : "opacity-30 pointer-events-none"
+              )}
+            >
+              {RATINGS.map((r) => (
+                <button
+                  key={r.rating}
+                  onClick={() => submitRating(r.rating)}
+                  disabled={!flipped}
+                  className={cn(
+                    "rounded-xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-elevated",
+                    RATING_BG[r.color]
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl">{r.emoji}</span>
+                    <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-current/20 opacity-60">
+                      {r.key}
+                    </kbd>
+                  </div>
+                  <div className="mt-2 font-display font-semibold">{r.label}</div>
+                  <div className="text-xs opacity-80">{r.hint}</div>
+                </button>
+              ))}
+            </div>
+            <p className="text-center text-xs text-muted-foreground mt-4">
+              <kbd className="font-mono px-1.5 py-0.5 rounded border border-border">Space</kbd> flip ·
+              <kbd className="font-mono px-1.5 py-0.5 rounded border border-border ml-1">1-4</kbd> rate ·
+              <kbd className="font-mono px-1.5 py-0.5 rounded border border-border ml-1">Esc</kbd> exit
+            </p>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

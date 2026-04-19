@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { levelForXp } from "@/lib/levels";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -57,10 +58,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="font-display text-xl font-semibold">FlipWise</span>
           </Link>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1.5 rounded-full bg-warning/10 px-3 py-1.5 text-sm">
-              <Flame className="h-4 w-4 text-warning" />
-              <span className="font-mono font-semibold">{streak}</span>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div
+              className={`hidden sm:flex items-center gap-1.5 rounded-full bg-warning/10 px-3 py-1.5 text-sm ${
+                streak > 0 ? "animate-pulse-glow" : ""
+              }`}
+            >
+              <Flame className={`h-4 w-4 text-warning ${streak > 0 ? "drop-shadow-[0_0_6px_hsl(var(--warning)/0.6)]" : ""}`} />
+              <span className="font-mono font-semibold tabular-nums">{streak}</span>
               <span className="text-muted-foreground hidden md:inline">day streak</span>
             </div>
 
@@ -69,6 +74,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="font-medium text-primary">{current.name}</span>
               <span className="font-mono text-xs text-primary/70">· {xp} XP</span>
             </div>
+
+            <ThemeToggle />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

@@ -9,6 +9,8 @@ import {
   Sparkles, Loader2, Brain, Repeat2, TrendingUp,
   Upload, Wand2, GraduationCap, ArrowRight,
 } from "lucide-react";
+import { FloatingCardsBg } from "@/components/FloatingCardsBg";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function Landing() {
   const { user, loading } = useAuth();
@@ -52,14 +54,16 @@ export default function Landing() {
           </div>
           <span className="font-display text-2xl font-semibold">FlipWise</span>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
+          <ThemeToggle />
           <Button asChild variant="ghost"><Link to="/auth">Sign in</Link></Button>
           <Button asChild><Link to="/auth?mode=signup">Get started</Link></Button>
         </div>
       </header>
 
       {/* Hero */}
-      <section className="container max-w-5xl pt-12 sm:pt-20 pb-16 text-center animate-fade-in">
+      <section className="relative container max-w-5xl pt-12 sm:pt-20 pb-16 text-center animate-fade-in">
+        <FloatingCardsBg />
         <div className="inline-flex items-center gap-2 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary mb-6">
           <Sparkles className="h-3.5 w-3.5" /> AI-powered spaced repetition
         </div>
@@ -73,12 +77,12 @@ export default function Landing() {
           FlipWise turns any study material into smart flashcards that adapt to how well you know them — powered by spaced repetition.
         </p>
         <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
-          <Button asChild size="lg" className="text-base h-12 px-6 shadow-elevated">
+          <Button asChild size="lg" className="text-base h-12 px-6 shadow-elevated rounded-full animate-pulse-cta">
             <Link to="/auth?mode=signup">
               Get Started Free <ArrowRight className="h-4 w-4 ml-2" />
             </Link>
           </Button>
-          <Button size="lg" variant="outline" className="text-base h-12 px-6" onClick={handleGuest} disabled={busy}>
+          <Button size="lg" variant="outline" className="text-base h-12 px-6 rounded-full" onClick={handleGuest} disabled={busy}>
             {busy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Try as Guest
           </Button>
